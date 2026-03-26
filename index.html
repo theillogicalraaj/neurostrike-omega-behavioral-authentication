@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>NeuroStrike Ω++</title>
+
+<style>
+body {
+    background:#0d1117;
+    color:#e6edf3;
+    font-family:Arial;
+    text-align:center;
+    margin:0;
+}
+
+h1 { color:#58a6ff; margin-top:20px; }
+
+input {
+    padding:12px;
+    width:320px;
+    background:#161b22;
+    border:1px solid #30363d;
+    color:white;
+    margin-top:10px;
+}
+
+button {
+    margin:10px;
+    padding:10px 15px;
+    background:#238636;
+    border:none;
+    color:white;
+    cursor:pointer;
+}
+
+.panel {
+    margin:30px auto;
+    width:80%;
+    max-width:900px;
+    background:#161b22;
+    padding:20px;
+    border:1px solid #30363d;
+    border-radius:10px;
+}
+
+.label {
+    text-align:left;
+    margin-top:10px;
+    font-size:14px;
+}
+
+.bar {
+    height:12px;
+    border-radius:5px;
+    margin-top:5px;
+}
+
+.report {
+    text-align:left;
+    margin-top:20px;
+    background:#0d1117;
+    padding:15px;
+    border-radius:8px;
+}
+
+.note {
+    margin-top:20px;
+    font-size:13px;
+    color:#8b949e;
+    text-align:left;
+    line-height:1.6;
+}
+
+canvas {
+    margin-top:20px;
+    background:#0d1117;
+    border-radius:6px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>NeuroStrike Ω++</h1>
+
+<p><b>Objective:</b> To simulate continuous user authentication using typing behavior (keystroke dynamics).</p>
+
+<input id="inputBox" placeholder="Type continuously..." />
+<br>
+<button onclick="resetData()">Reset Baseline</button>
+
+<div class="panel">
+
+<h3>System Metrics</h3>
+<p id="metrics">Waiting for input...</p>
+
+<div class="label">Trust Level: <span id="trustValue">0</span>%</div>
+<div class="bar" id="trustBar"></div>
+
+<div class="label">Risk Level: <span id="riskValue">0</span>%</div>
+<div class="bar" id="riskBar"></div>
+
+<canvas id="graph" width="800" height="200"></canvas>
+<p style="font-size:13px;">
+Graph: Flight Time (ms) vs Keystroke Index<br>
+X-axis: Keystroke Sequence | Y-axis: Time (milliseconds)
+</p>
+
+<div class="report" id="report"></div>
+
+<div class="note">
+<b>System Flow:</b><br>
+Input → Feature Extraction → Statistical Analysis → Risk Calculation → Decision Output<br><br>
+
+<b>Mathematical Model:</b><br>
+Risk = (Deviation × 0.5) + (Variance × 0.3) + Speed Factor<br><br>
+
+<b>Weight Justification:</b><br>
+Deviation (50%) → primary anomaly indicator<br>
+Variance (30%) → measures consistency<br>
+Speed Factor → detects automation<br><br>
+
+<b>Decision Rule:</b><br>
+Risk > 60 → Suspicious Behavior<br><br>
+
+<b>Limitation:</b><br>
+This is a statistical simulation. Real systems use machine learning and large datasets.
+</div>
+
+</div>
+
+<script>
+
+// ================= DATA =================
+let downTimes = [];
+let upTimes = [];
+let sessions = JSON.parse(localStorage.getItem("sessions")) || [];
+
+const ctx = document.getElementById("graph").getContext("2d");
+
+// ================= FUNCTIONS =================
+
+// Mean
+function mean(arr){
+    return arr.reduce((a,b)=>a+b,0)/arr.length;
+}
+
+// Standard deviation
+function std(arr,avg){
+    return Math.sqrt(arr.reduce((a,b)=>a+(b-avg)**2,0)/arr.length);
+}
+
+// Reset
+function resetData(){
+    localStorage.clear();
+    location.reload();
+}
+
+// ================= INPUT =================
+
+document.getElementById("inputBox").addEventListener("keydown",()=>{
+    downTimes.push(Date.now());
+});
+
+document.getElementById("inputBox").addEventListener("keyup",()=>{
+
+    upTimes.push(Date.now());
+
+    if(downTimes.length < 10) return;
+
+    let dwell = [];
+    let flight = [];
+
+    for(let i=0;i<downTimes.length;i++){
+        dwell.push(upTimes[i] - downTimes[i]);
+        if(i > 0){
+            flight.push(downTimes[i] - upTimes[i-1]);
+        }
+    }
+
+    // EDGE CASE: insufficient data
+    if(flight.length < 5){
+        document.getElementById("report").innerHTML =
+        "<b>Note:</b> Insufficient data for reliable analysis. Continue typing...";
+        return;
+    }
+
+    let avgDwell = mean(dwell);
+    let avgFlight = mean(flight);
+
+    let current = (avgDwell + avgFlight) / 2;
+
+    // Store session
+    sessions.push(current);
+    if(sessions.length > 3) sessions.shift();
+
+    localStorage.setItem("sessions", JSON.stringify(sessions));
+
+    let baseline = mean(sessions);
+
+    // ================= STATISTICS =================
+
+    let deviation = Math.abs(current - baseline);
+    let deviationPercent = (deviation / baseline) * 100;
+
+    let variation = std(sessions, baseline);
+
+    // ================= MODEL =================
+
+    let risk = (deviationPercent * 0.5) + (variation * 0.3) + ((current < 80) ? 20 : 0);
+    let trust = Math.max(0, 100 - risk);
+
+    let decision = (risk > 60) ? "Suspicious Behavior" : "Normal Behavior";
+
+    // ================= UI =================
+
+    document.getElementById("metrics").innerText =
+        "Baseline: " + baseline.toFixed(2) + " | Current: " + current.toFixed(2);
+
+    document.getElementById("trustValue").innerText = trust.toFixed(1);
+    document.getElementById("riskValue").innerText = risk.toFixed(1);
+
+    document.getElementById("trustBar").style.width = trust + "%";
+    document.getElementById("trustBar").style.background = "#2ea043";
+
+    document.getElementById("riskBar").style.width = risk + "%";
+    document.getElementById("riskBar").style.background = "#da3633";
+
+    // ================= GRAPH =================
+
+    ctx.clearRect(0,0,800,200);
+
+    ctx.beginPath();
+    ctx.moveTo(0,200 - flight[0]);
+
+    for(let i=1;i<flight.length;i++){
+        ctx.lineTo(i * 25, 200 - flight[i]);
+    }
+
+    ctx.strokeStyle = "#58a6ff";
+    ctx.stroke();
+
+    // ================= REPORT =================
+
+    document.getElementById("report").innerHTML = `
+    <b>Risk Score:</b> ${risk.toFixed(2)}<br>
+    <b>Trust Score:</b> ${trust.toFixed(2)}<br>
+    <b>Decision:</b> ${decision}<br><br>
+
+    <b>Explanation:</b><br>
+    - Deviation from baseline: ${deviationPercent.toFixed(2)}%<br>
+    - Variance: ${variation.toFixed(2)}<br>
+    - Speed Factor: ${(current < 80) ? "High (Possible Automation)" : "Normal"}<br>
+    `;
+
+});
+
+</script>
+
+</body>
+</html>
